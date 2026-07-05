@@ -19,19 +19,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 
 // 🔥 IMPORT BACKEND API
-import { analyzeReviews } from "@/lib/api";
+import { getAnalysisData } from "@/lib/getAnalysis";
 
-const heatmapData = [
-  { feature: 'Battery Life', productA: 42, productB: 85, competitor: 70 },
-  { feature: 'Camera Quality', productA: 92, productB: 88, competitor: 95 },
-  { feature: 'UI Design', productA: 88, productB: 65, competitor: 80 },
-  { feature: 'Build Quality', productA: 75, productB: 90, competitor: 85 },
-  { feature: 'Value for Money', productA: 60, productB: 82, competitor: 75 },
-];
 
 export default function ComparisonReporting() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
-
+  const analysis = getAnalysisData();
   // 🔥 NEW STATE
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -45,47 +38,83 @@ export default function ComparisonReporting() {
   };
 
   // 🔥 GENERATE FUNCTION
-  const handleGenerate = async () => {
-    try {
-      setLoading(true);
-
-      const reviews = [
-        "Battery is excellent",
-        "Packaging is terrible",
-        "Delivery was very late"
-      ];
-
-      const data = await analyzeReviews(reviews);
-      setResult(data);
-
-    } catch (error) {
-      console.error(error);
-      alert("Check console for error");
-    } finally {
-      setLoading(false);
+  const handleGenerate = () => {
+    const data = getAnalysisData();
+    
+    console.log("GENERATED DATA:", data);
+    if (!data) {
+      alert("No review analysis data found");
+      return;
     }
+
+    setResult(data);
   };
 
   // 🔥 EXPORT FUNCTION
   const handleExport = () => {
-    if (!result) {
-      alert("No data to export");
-      return;
-    }
 
-    const blob = new Blob([JSON.stringify(result, null, 2)], {
-      type: "application/json",
-    });
+      if (!result) {
+        alert("No data to export");
+        return;
+      }
 
-    const url = URL.createObjectURL(blob);
+      let report = `
+    AI REVIEW ANALYSIS REPORT
+    =========================
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "report.json";
-    a.click();
+    Total Reviews Analyzed: ${result.total_reviews}
 
-    URL.revokeObjectURL(url);
-  };
+    KEY INSIGHTS
+    ------------
+    `;
+
+      result.insights?.forEach((item: string) => {
+        report += `• ${item}\n`;
+      });
+
+      report += `
+
+    TRENDS
+    ------
+    `;
+
+      Object.entries(result.trend || {}).forEach(
+        ([feature, trend]: any) => {
+          report += `${feature}: ${trend}\n`;
+        }
+      );
+
+      report += `
+
+    REVIEW SUMMARIES
+    ----------------
+    `;
+
+      result.results?.forEach((review: any, index: number) => {
+        report += `
+    Review ${index + 1}
+
+    Sentiment: ${review.overall_sentiment}
+
+    Summary:
+    ${review.summary}
+
+    `;
+      });
+
+      const blob = new Blob([report], {
+        type: "text/plain",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "AI_Review_Report.txt";
+      a.click();
+
+      URL.revokeObjectURL(url);
+    };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -100,19 +129,38 @@ export default function ComparisonReporting() {
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
-              <GitCompare className="text-indigo-500" size={20} />
-              Product Benchmarking Heatmap
-            </CardTitle>
-            <CardDescription>Feature comparison</CardDescription>
+            <GitCompare className="text-indigo-500" size={20} />
+            Feature Sentiment Summary
+          </CardTitle>
+
+          <CardDescription>
+            Feature-wise sentiment extracted from uploaded reviews
+          </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {heatmapData.map((row, i) => (
-              <div key={i} className="flex justify-between mb-2">
-                <span>{row.feature}</span>
-                <span className={getHeatmapColor(row.productA)}>{row.productA}</span>
-                <span className={getHeatmapColor(row.productB)}>{row.productB}</span>
-                <span className={getHeatmapColor(row.competitor)}>{row.competitor}</span>
+            {Object.entries(
+              analysis?.feature_percentages || {}
+            ).map(([feature, data]: any, i) => (
+              <div
+                key={i}
+                className="flex justify-between mb-3 border-b border-slate-700 pb-2"
+              >
+                <span className="capitalize font-medium">
+                  {feature}
+                </span>
+
+                <span className="text-green-400">
+                  + {data.positive}%
+                </span>
+
+                <span className="text-yellow-400">
+                  = {data.neutral}%
+                </span>
+
+                <span className="text-red-400">
+                  - {data.negative}%
+                </span>
               </div>
             ))}
           </CardContent>
@@ -123,14 +171,19 @@ export default function ComparisonReporting() {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <LayoutPanelLeft size={20} />
-              Report Builder
+              Analysis Report Generator
             </CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-4">
 
             {/* MODULES */}
-            {['KPI Snapshot', 'Top Issues', 'Heatmap', 'Strategy Queue'].map((mod) => (
+            {[
+              'Review Summary',
+              'Feature Sentiment Analysis',
+              'Trend Analysis',
+              'AI Generated Insights'
+            ].map((mod) => (
               <div key={mod} className="flex items-center p-3 border border-white/10 rounded-lg">
                 <CheckCircle size={12} className="text-white mr-2" />
                 <span className="text-sm text-slate-300">{mod}</span>
@@ -142,9 +195,9 @@ export default function ComparisonReporting() {
               <span className="text-white">Auto Send</span>
               <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
             </div>
-
+            
           </CardContent>
-
+            
           <CardFooter className="flex justify-between">
             <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
@@ -163,9 +216,44 @@ export default function ComparisonReporting() {
 
       {/* 🔥 SHOW RESULT */}
       {result && (
-        <div className="bg-black text-green-400 p-4 rounded-lg text-xs overflow-auto">
-          <pre>{JSON.stringify(result, null, 2)}</pre>
-        </div>
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Generated Report</CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+
+            <div>
+              <h3 className="font-semibold">Total Reviews</h3>
+              <p>{result.total_reviews}</p>
+            </div>
+
+            <div>
+              <h3 className="font-semibold">Key Insights</h3>
+
+              <ul className="list-disc pl-5">
+                {result.insights?.map((item: string, index: number) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold">Detected Trends</h3>
+
+              <ul className="list-disc pl-5">
+                {Object.entries(result.trend || {}).map(
+                  ([feature, trend]: any) => (
+                    <li key={feature}>
+                      {feature}: {trend}
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+
+          </CardContent>
+        </Card>
       )}
 
     </div>

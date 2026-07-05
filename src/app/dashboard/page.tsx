@@ -6,22 +6,61 @@ import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, MessageSquare, S
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { getAnalysisData } from "@/lib/getAnalysis";
 
-const sentimentData = [
-  { name: 'Positive', value: 65, color: '#22c55e' },
-  { name: 'Neutral', value: 20, color: '#eab308' },
-  { name: 'Negative', value: 15, color: '#ef4444' },
-];
-
-const emergingIssues = [
-  { id: 1, feature: 'Battery Life', sentiment: 'Negative', change: '-12%', impact: 'High', status: 'Investigating' },
-  { id: 2, feature: 'Bluetooth Pairing', sentiment: 'Negative', change: '-8%', impact: 'High', status: 'Open' },
-  { id: 3, feature: 'App UI Navigation', sentiment: 'Neutral', change: '-3%', impact: 'Medium', status: 'Monitoring' },
-  { id: 4, feature: 'Fast Charging', sentiment: 'Positive', change: '+15%', impact: 'Low', status: 'Resolved' },
-  { id: 5, feature: 'Water Resistance', sentiment: 'Neutral', change: '-1%', impact: 'Low', status: 'Monitoring' },
-];
 
 export default function CommandCenter() {
+
+  const analysis = getAnalysisData();
+
+  console.log("ANALYSIS DATA:", analysis);
+
+  const positive =
+    analysis?.results?.filter(
+      (r: any) => r.overall_sentiment === "positive"
+    ).length || 0;
+
+  const negative =
+    analysis?.results?.filter(
+      (r: any) => r.overall_sentiment === "negative"
+    ).length || 0;
+
+  const neutral =
+    analysis?.results?.filter(
+      (r: any) => r.overall_sentiment === "neutral"
+    ).length || 0;
+
+  const sentimentData = [
+    {
+      name: "Positive",
+      value: positive,
+      color: "#22c55e",
+    },
+    {
+      name: "Neutral",
+      value: neutral,
+      color: "#eab308",
+    },
+    {
+      name: "Negative",
+      value: negative,
+      color: "#ef4444",
+    },
+  ];
+  const emergingIssues =
+  analysis?.insights?.slice(0, 5).map(
+    (item: string, index: number) => ({
+      id: index,
+      feature: item,
+      status:
+        item.toLowerCase().includes("critical")
+          ? "Critical"
+          : item.toLowerCase().includes("increasing")
+          ? "Warning"
+          : "Info",
+    })
+  ) || [];
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -60,9 +99,21 @@ export default function CommandCenter() {
               <Activity className="h-4 w-4 text-electric-indigo" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">78/100</div>
-              <p className="text-xs text-emerald-400 flex items-center mt-1">
-                <ArrowUpRight className="mr-1 h-3 w-3" /> +2.5% from last week
+              <div className="text-3xl font-bold text-white">
+                {analysis?.total_reviews
+                  ? Math.round(
+                      (
+                        (positive * 100 +
+                          neutral * 50 +
+                          negative * 0) /
+                        analysis.total_reviews
+                      )
+                    )
+                  : 0}/100
+              </div>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Based on analyzed reviews
               </p>
             </CardContent>
           </Card>
@@ -75,10 +126,10 @@ export default function CommandCenter() {
               <MessageSquare className="h-4 w-4 text-electric-indigo" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">18,492</div>
-              <p className="text-xs text-emerald-400 flex items-center mt-1">
-                <ArrowUpRight className="mr-1 h-3 w-3" /> +1,204 today
-              </p>
+              <div className="text-3xl font-bold text-white">
+                {analysis?.total_reviews || 0}
+              </div>
+              
             </CardContent>
           </Card>
         </motion.div>
@@ -90,10 +141,12 @@ export default function CommandCenter() {
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">3</div>
-              <p className="text-xs text-red-400 flex items-center mt-1">
-                <ArrowUpRight className="mr-1 h-3 w-3" /> +1 new anomaly detected
-              </p>
+              <div className="text-3xl font-bold text-white">
+                {analysis?.insights?.filter(
+                  (item: string) =>
+                    item.toLowerCase().includes("critical")
+                ).length || 0}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -108,7 +161,18 @@ export default function CommandCenter() {
               <Star className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="text-3xl font-bold text-white">4.2</div>
+              <div className="text-3xl font-bold text-white">
+                {analysis?.total_reviews
+                  ? (
+                      (
+                        positive * 5 +
+                        neutral * 3 +
+                        negative * 1
+                      ) /
+                      analysis.total_reviews
+                    ).toFixed(1)
+                  : "0.0"}
+              </div>
               <p className="text-xs text-slate-400 flex items-center mt-1">
                 Based on verified purchases
               </p>
@@ -160,33 +224,22 @@ export default function CommandCenter() {
               <div>
                 <CardTitle className="text-lg text-white flex items-center gap-2">
                   <Zap className="text-electric-indigo" size={20} />
-                  Top 5 Emerging Issues
+                  Top Emerging Feedback Insights 
                 </CardTitle>
-                <CardDescription className="text-slate-400">Features seeing the fastest drop in sentiment.</CardDescription>
+                <CardDescription className="text-slate-400">Summary of notable patterns and observations from analyzed reviews.</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {emergingIssues.map((issue) => (
+                {emergingIssues.map((issue: any) => (
                   <div key={issue.id} className="group flex items-center justify-between p-4 rounded-xl bg-slate-800/30 border border-white/5 hover:bg-slate-800/50 hover:border-electric-indigo/30 transition-all cursor-pointer">
                     <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg ${issue.impact === 'High' ? 'bg-red-500/10 text-red-500' :
-                          issue.impact === 'Medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'
-                        }`}>
-                        {issue.impact === 'High' ? <AlertTriangle size={20} /> : <TrendingUp size={20} />}
+                      <div className="p-2 rounded-lg bg-red-500/10 text-red-500">
+                        <AlertTriangle size={20} />
                       </div>
                       <div>
                         <h4 className="font-semibold text-white group-hover:text-electric-indigo transition-colors">{issue.feature}</h4>
-                        <div className="flex items-center gap-2 text-xs mt-1">
-                          <span className={`${issue.sentiment === 'Negative' ? 'text-red-400' :
-                              issue.sentiment === 'Positive' ? 'text-green-400' : 'text-yellow-400'
-                            }`}>{issue.sentiment} Sentiment</span>
-                          <span className="text-slate-500">•</span>
-                          <span className={`flex items-center ${issue.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
-                            {issue.change.startsWith('+') ? <ArrowUpRight size={12} className="mr-0.5" /> : <ArrowDownRight size={12} className="mr-0.5" />}
-                            {issue.change}
-                          </span>
-                        </div>
+                        
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

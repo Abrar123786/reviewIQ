@@ -55,8 +55,16 @@ export default function IngestionEngine() {
       });
 
       const data = await res.json();
+
       console.log("BACKEND RESULT:", data);
+
       setAnalysisResult(data);
+
+      // 🔥 STORE ANALYSIS FOR ALL DASHBOARDS
+      localStorage.setItem(
+        "reviewAnalysis",
+        JSON.stringify(data)
+      );
 
       let step = 0;
       const interval = setInterval(() => {

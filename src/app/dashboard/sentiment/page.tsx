@@ -8,32 +8,48 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
-  Body,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
   TableBody
 } from "@/components/ui/table";
+import { getAnalysisData } from "@/lib/getAnalysis";
 
-const features = [
-  { name: 'Battery Life', sentiment: 42, trend: '-12%', sparkline: [60, 55, 50, 48, 45, 42] },
-  { name: 'UI Navigation', sentiment: 88, trend: '+5%', sparkline: [70, 75, 80, 85, 87, 88] },
-  { name: 'Pricing', sentiment: 35, trend: '-2%', sparkline: [40, 38, 37, 36, 35, 35] },
-  { name: 'Customer Support', sentiment: 92, trend: '+18%', sparkline: [50, 60, 70, 85, 90, 92] },
-];
+const analysis = getAnalysisData();
+const features = Object.entries(
+  analysis?.feature_percentages || {}
+).map(([feature, data]: any) => ({
+  name: feature,
+  sentiment: Math.round(data.positive),
+  trend:
+    data.positive > data.negative
+      ? `+${Math.round(data.positive)}%`
+      : `-${Math.round(data.negative)}%`,
+  sparkline: [
+    data.neutral,
+    data.positive,
+    data.negative,
+    data.positive,
+  ],
+}));
 
-const reviews = [
-  { id: '1', text: "Oh great, another update that drains my battery in 2 hours. Just what I wanted.", sentiment: 'Negative', flags: ['Sarcasm', 'Battery'], date: '2h ago' },
-  { id: '2', text: "The new interface is okay, I guess. Not sure if I like it better than the old one.", sentiment: 'Neutral', flags: ['Ambiguity', 'UI'], date: '5h ago' },
-  { id: '3', text: "Support was incredibly fast! Fixed my billing issue in 5 minutes.", sentiment: 'Positive', flags: ['Support', 'Billing'], date: '1d ago' },
-  { id: '4', text: "It works.", sentiment: 'Neutral', flags: ['Ambiguity'], date: '1d ago' },
-  { id: '5', text: "Phone gets literally hot enough to fry an egg when playing games.", sentiment: 'Negative', flags: ['Hyperbole', 'Hardware'], date: '2d ago' },
-];
+const reviews: any[] =
+  analysis?.results?.map((item: any, index: number) => ({
+    id: index.toString(),
+    text: item.summary,
+    sentiment:
+      item.overall_sentiment.charAt(0).toUpperCase() +
+      item.overall_sentiment.slice(1),
+    flags: Object.keys(item.features || {}).filter(
+      (key) => item.features[key] !== "neutral"
+    ),
+    date: "Latest",
+  })) || [];
 
 export default function SentimentAnalysis() {
   const [selectedReview, setSelectedReview] = useState<any>(null);
-
+  const analysis = getAnalysisData();
   const renderSparkline = (data: number[], isPositive: boolean) => {
     const min = Math.min(...data);
     const max = Math.max(...data);
@@ -90,17 +106,10 @@ export default function SentimentAnalysis() {
       {/* Review Table & Side Panel */}
       <div className="flex gap-6 flex-1 min-h-0">
         <Card className="glass-card flex-1 flex flex-col min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg text-white">Analyzed Reviews</CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                <Input placeholder="Search reviews..." className="pl-8 h-8 w-[200px] bg-slate-900/50 border-white/10 text-xs" />
-              </div>
-              <Badge variant="outline" className="cursor-pointer hover:bg-white/5 border-white/10 text-slate-300">
-                <Filter size={14} className="mr-1" /> Filter
-              </Badge>
-            </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-white">
+              Analyzed Reviews
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-0">
             <Table>
@@ -113,7 +122,7 @@ export default function SentimentAnalysis() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reviews.map((review) => (
+                {reviews.map((review: any) => (
                   <TableRow 
                     key={review.id} 
                     className={`border-b border-white/5 cursor-pointer transition-colors ${selectedReview?.id === review.id ? 'bg-electric-indigo/10 border-l-2 border-l-electric-indigo' : 'hover:bg-slate-800/30'}`}
@@ -130,7 +139,7 @@ export default function SentimentAnalysis() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
-                        {review.flags.map(flag => (
+                        {review.flags.map((flag: string) => (
                           <Badge key={flag} variant="outline" className={`text-[10px] py-0 px-1 border-opacity-30 ${
                             flag === 'Sarcasm' ? 'border-orange-500 text-orange-400 bg-orange-500/10' :
                             flag === 'Ambiguity' ? 'border-blue-500 text-blue-400 bg-blue-500/10' :
@@ -178,37 +187,47 @@ export default function SentimentAnalysis() {
                   <div>
                     <h4 className="text-xs text-slate-500 uppercase tracking-wider mb-2">AI Interpretation</h4>
                     <div className="space-y-3">
-                      {selectedReview.flags.includes('Sarcasm') && (
-                        <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                          <AlertTriangle className="text-orange-400 shrink-0 mt-0.5" size={16} />
-                          <div>
-                            <p className="text-orange-400 font-medium text-sm">Sarcasm Detected</p>
-                            <p className="text-slate-300 text-xs mt-1">Text explicitly states "great update" but context implies extreme frustration regarding battery performance.</p>
+                      <div className="p-3 rounded-lg bg-electric-indigo/10 border border-electric-indigo/20">
+                        <p className="text-electric-indigo font-medium text-sm">
+                          Review Sentiment
+                        </p>
+
+                        <p className="text-white mt-1">
+                          {selectedReview.sentiment}
+                        </p>
+                      </div>
+                      
+                      <div className="p-3 rounded-lg bg-slate-800/30 border border-white/5 space-y-3 text-sm">
+
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Sentiment</span>
+                          <span className="text-white">
+                            {selectedReview.sentiment}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="text-slate-400 block mb-2">
+                            Detected Features
+                          </span>
+
+                          <div className="flex flex-wrap gap-2">
+                            {selectedReview.flags.map((flag: string) => (
+                              <Badge
+                                key={flag}
+                                variant="outline"
+                                className="border-electric-indigo/30 text-electric-indigo"
+                              >
+                                {flag}
+                              </Badge>
+                            ))}
                           </div>
                         </div>
-                      )}
-                      
-                      <div className="p-3 rounded-lg bg-slate-800/30 border border-white/5 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Core Emotion</span>
-                          <span className="text-white">Frustration (85%)</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Primary Entity</span>
-                          <span className="text-white">Battery</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Actionability</span>
-                          <span className="text-electric-indigo">High (Hardware/Dev)</span>
-                        </div>
+
                       </div>
                     </div>
                   </div>
                   
-                  <div className="pt-4 border-t border-white/5 flex gap-2">
-                    <Button className="flex-1 bg-electric-indigo hover:bg-electric-indigo/90 text-xs">Route to Issue</Button>
-                    <Button variant="outline" className="flex-1 border-white/10 text-xs">Tag</Button>
-                  </div>
                 </div>
               </Card>
             </motion.div>
